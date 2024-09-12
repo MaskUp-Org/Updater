@@ -96,12 +96,18 @@ class Program
     {
         if (string.IsNullOrEmpty(platformioPath) || !IsCommandAvailable($"\"{platformioPath}\" --version"))
         {
-            string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string pythonPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\python.exe");
+            string pythonPath = FindPythonPath();
 
-            Console.WriteLine("PlatformIO n'est pas installé. Installation en cours...");
-            var installCmd = $"{pythonPath} {scriptPath}";
-            RunCommand(installCmd);
+            if (!string.IsNullOrEmpty(pythonPath) && File.Exists(pythonPath))
+            {
+                Console.WriteLine("PlatformIO n'est pas installé. Installation en cours...");
+                var installCmd = $"{pythonPath} {scriptPath}";
+                RunCommand(installCmd);
+            }
+            else
+            {
+                Console.WriteLine("Python n'est pas trouvé. Veuillez installer Python avant de continuer.");
+            }
         }
         else
         {
@@ -157,6 +163,44 @@ class Program
             Console.WriteLine("Cloning repository...");
             return RunCommand(gitCloneCmd);
         }
+    }
+
+    static string FindPythonPath()
+    {
+        // Vérifie les chemins courants pour Python
+        string[] possiblePaths = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"Python\PythonXX\python.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Python\PythonXX\python.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Programs\Python\PythonXX\python.exe")
+        };
+
+        // Remplace 'XX' par les versions spécifiques si nécessaire, ou utiliser des modèles génériques si vous avez besoin de prendre en compte plusieurs versions
+        foreach (var path in possiblePaths)
+        {
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        // Vérifie la variable d'environnement PATH
+        string pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrEmpty(pathEnv))
+        {
+            string[] paths = pathEnv.Split(Path.PathSeparator);
+
+            foreach (var p in paths)
+            {
+                string potentialPath = Path.Combine(p, "python.exe");
+                if (File.Exists(potentialPath))
+                {
+                    return potentialPath;
+                }
+            }
+        }
+
+        return null;
     }
 
     static string FindPlatformioPath()
