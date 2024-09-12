@@ -7,23 +7,25 @@ class Program
     static void Main(string[] args)
     {
         string projectPath = Path.Combine(Directory.GetCurrentDirectory(), "Release");
-
         string repositoryUrl = "https://github.com/MaskUp-Org/Embedded.git";
 
-
-        //string platformioScriptPath = Path.Combine(Directory.GetCurrentDirectory(), "");
-
-
         string platformioScriptPath = "-m pip install -U platformio";
-
         string pythonCommand = "python --version";
         string gitCommand = "git --version";
-        string platformioCommand = "pio --version";
+        string platformioPath = FindPlatformioPath();
 
+        if (string.IsNullOrEmpty(platformioPath))
+        {
+            Console.WriteLine("PlatformIO n'est pas installé ou non trouvé.");
+        }
+        else
+        {
+            Console.WriteLine($"PlatformIO trouvé à : {platformioPath}");
+        }
 
         InstallIfMissing("python", pythonCommand, "Python.Python.3.12");
         InstallIfMissing("git", gitCommand, "Git.Git");
-        InstallPlatformIOIfMissing(platformioCommand, platformioScriptPath);
+        InstallPlatformIOIfMissing(platformioPath, platformioScriptPath);
 
         if (!Directory.Exists(projectPath))
         {
@@ -44,23 +46,25 @@ class Program
                 {
                     Console.WriteLine("Échec du téléversement vers l'ESP32.");
                 }
-                else {
+                else
+                {
                     bool buildFileSystemSuccess = BuildFileSystemToESP32(projectPath);
                     if (!buildFileSystemSuccess)
                     {
                         Console.WriteLine("Échec de la construction du système de fichiers.");
                     }
-                    else {
+                    else
+                    {
                         bool uploadFileSystemSuccess = UploadFileSystemToESP32(projectPath);
                         if (!uploadFileSystemSuccess)
                         {
                             Console.WriteLine("Échec du téléversement du système de fichiers vers l'ESP32.");
                         }
-                        else {
+                        else
+                        {
                             Console.WriteLine("Upload Filesystem success !!");
                         }
-
-                    } 
+                    }
                 }
             }
             else
@@ -88,12 +92,11 @@ class Program
         }
     }
 
-    static void InstallPlatformIOIfMissing(string checkCommand, string scriptPath)
+    static void InstallPlatformIOIfMissing(string platformioPath, string scriptPath)
     {
-        if (!IsToolInstalled(checkCommand))
+        if (string.IsNullOrEmpty(platformioPath) || !IsCommandAvailable($"\"{platformioPath}\" --version"))
         {
             string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
             string pythonPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\python.exe");
 
             Console.WriteLine("PlatformIO n'est pas installé. Installation en cours...");
@@ -108,9 +111,14 @@ class Program
 
     static bool IsToolInstalled(string checkCommand)
     {
+        return IsCommandAvailable(checkCommand);
+    }
+
+    static bool IsCommandAvailable(string command)
+    {
         try
         {
-            var processInfo = new ProcessStartInfo("cmd.exe", $"/c {checkCommand}")
+            var processInfo = new ProcessStartInfo("cmd.exe", $"/c {command}")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -151,41 +159,83 @@ class Program
         }
     }
 
+    static string FindPlatformioPath()
+    {
+        string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string pythonFolder = Path.Combine(userFolder, @"AppData\Local\Programs\Python");
+
+        if (Directory.Exists(pythonFolder))
+        {
+            var pythonVersions = Directory.GetDirectories(pythonFolder);
+
+            foreach (var versionFolder in pythonVersions)
+            {
+                string platformioPath = Path.Combine(versionFolder, "Scripts", "platformio.exe");
+
+                if (File.Exists(platformioPath))
+                {
+                    return platformioPath;
+                }
+            }
+        }
+
+        Console.WriteLine("PlatformIO not found in the expected directory.");
+        return null;
+    }
+
     static bool CompileProject(string projectPath)
     {
-        string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string platformioPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\Scripts\platformio.exe");
+        string platformioPath = FindPlatformioPath();
+
+        if (platformioPath == null)
+        {
+            return false;
+        }
 
         Console.WriteLine("Compiling project...");
-
-        var compileCmd = $"{platformioPath} run";
+        var compileCmd = $"\"{platformioPath}\" run";
         return RunCommand(compileCmd, projectPath);
     }
+
     static bool BuildFileSystemToESP32(string projectPath)
     {
-        string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string platformioPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\Scripts\platformio.exe");
+        string platformioPath = FindPlatformioPath();
+
+        if (platformioPath == null)
+        {
+            return false;
+        }
 
         Console.WriteLine("Building Filesystem image...");
-        var uploadCmd = $"{platformioPath} run --target buildfs";
-        return RunCommand(uploadCmd, projectPath);
+        var buildFsCmd = $"\"{platformioPath}\" run --target buildfs";
+        return RunCommand(buildFsCmd, projectPath);
     }
+
     static bool UploadFileSystemToESP32(string projectPath)
     {
-        string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string platformioPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\Scripts\platformio.exe");
+        string platformioPath = FindPlatformioPath();
+
+        if (platformioPath == null)
+        {
+            return false;
+        }
 
         Console.WriteLine("Uploading FileSystem to ESP32...");
-        var uploadCmd = $"{platformioPath} run --target uploadfs";
-        return RunCommand(uploadCmd, projectPath);
+        var uploadFsCmd = $"\"{platformioPath}\" run --target uploadfs";
+        return RunCommand(uploadFsCmd, projectPath);
     }
+
     static bool UploadToESP32(string projectPath)
     {
-        string userFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string platformioPath = Path.Combine(userFolder, @"AppData\Local\Programs\Python\Python312\Scripts\platformio.exe");
+        string platformioPath = FindPlatformioPath();
+
+        if (platformioPath == null)
+        {
+            return false;
+        }
 
         Console.WriteLine("Uploading to ESP32...");
-        var uploadCmd = $"{platformioPath} run --target upload";
+        var uploadCmd = $"\"{platformioPath}\" run --target upload";
         return RunCommand(uploadCmd, projectPath);
     }
 
@@ -233,4 +283,3 @@ class Program
         }
     }
 }
-
